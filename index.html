@@ -86,7 +86,15 @@
 
                     <div class="form-group">
                         <label for="country">Your Country</label>
-                        <input type="text" id="country" placeholder="e.g. Nigeria, USA, Brazil" required>
+                        <select id="country" required>
+                            <option value="">Select your country</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="applicant-email">Your Email Address</label>
+                        <input type="email" id="applicant-email" placeholder="your@email.com" required>
+                        <small style="color: var(--mu-graphite); margin-top: 0.4rem; display: block;">A Minervan will reply to this address. You'll also be asked to CC minerva.connect@proton.me.</small>
                     </div>
 
                     <div class="button-group">
@@ -128,6 +136,20 @@
             <h2>Complete Your Profile</h2>
             <p>Help us match you with the right applicants by sharing a few details.</p>
             <form id="profile-form">
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                    <div class="form-group">
+                        <label for="profile-first-name">First Name</label>
+                        <input type="text" id="profile-first-name" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="profile-last-name">Last Name</label>
+                        <input type="text" id="profile-last-name" required>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label for="profile-preferred-name">Preferred Name <span style="font-weight: 400; color: var(--mu-graphite);">(Optional — what applicants will see)</span></label>
+                    <input type="text" id="profile-preferred-name" placeholder="e.g. Emmy">
+                </div>
                 <div class="form-group">
                     <label for="profile-college">Your College</label>
                     <select id="profile-college" required>
@@ -146,7 +168,7 @@
                     </select>
                 </div>
                 <div class="form-group">
-                    <label for="profile-gender">Gender (Optional - for matching preferences)</label>
+                    <label for="profile-gender">Gender <span style="font-weight: 400; color: var(--mu-graphite);">(Optional)</span></label>
                     <select id="profile-gender">
                         <option value="No preference">No preference</option>
                         <option value="Male">Male</option>

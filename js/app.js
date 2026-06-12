@@ -105,6 +105,9 @@ async function loadProfile() {
 async function handleProfileUpdate(e) {
     e.preventDefault();
     const profileData = {
+        first_name: document.getElementById('profile-first-name').value,
+        last_name: document.getElementById('profile-last-name').value,
+        preferred_name: document.getElementById('profile-preferred-name').value,
         college: document.getElementById('profile-college').value,
         country: document.getElementById('profile-country').value,
         gender: document.getElementById('profile-gender').value
@@ -262,14 +265,22 @@ function renderUI() {
 
 function renderQuestions() {
     const list = document.getElementById('questions-list');
+    if (!state.questions.length) {
+        list.innerHTML = '<p style="color: var(--mu-graphite);">No open questions right now. Check back soon.</p>';
+        return;
+    }
     list.innerHTML = state.questions.map(q => `
         <div class="card">
             <h3>${q.topic}</h3>
-            <p style="color: var(--mu-clay);">${q.target_college}</p>
+            <p style="color: var(--mu-clay); margin-bottom: 0.5rem;">${q.target_college}</p>
             <p>${q.content.substring(0, 100)}...</p>
+            <div style="background: var(--mu-bone); border-radius: 8px; padding: 0.75rem; margin-bottom: 1rem; font-size: 0.875rem;">
+                <strong>Reply to:</strong> <a href="mailto:${q.applicant_email}?cc=minerva.connect@proton.me" style="color: var(--mu-clay);">${q.applicant_email}</a>
+                <br><span style="color: var(--mu-graphite); font-size: 0.8rem;">Remember to CC minerva.connect@proton.me when replying by email.</span>
+            </div>
             <div style="display: flex; justify-content: space-between; align-items: center;">
                 <span class="badge">Match: ${q.matchScore}</span>
-                <button class="btn btn-primary btn-sm" onclick="window.app.openQuestion('${q.id}')">Answer</button>
+                <button class="btn btn-primary btn-sm" onclick="window.app.openQuestion('${q.id}')">Open Chat</button>
             </div>
         </div>
     `).join('');
@@ -341,11 +352,12 @@ async function handleFormSubmit(e) {
     const content = document.getElementById('question-content').value;
     const moderation = moderateQuestion(content);
 
-    const data = { 
-        topic: document.getElementById('topic').value, 
-        target_college: document.getElementById('target-college').value, 
-        content: content, 
+    const data = {
+        topic: document.getElementById('topic').value,
+        target_college: document.getElementById('target-college').value,
+        content: content,
         context: document.getElementById('context').value,
+        applicant_email: document.getElementById('applicant-email').value,
         ...moderation
     };
     
@@ -360,8 +372,8 @@ async function handleFormSubmit(e) {
     }
 }
 
-window.app = { nextStep: (s) => { 
-    if (s===2 && (!document.getElementById('target-college').value || !document.getElementById('topic').value || !document.getElementById('country').value)) return alert('Fill all fields');
+window.app = { nextStep: (s) => {
+    if (s===2 && (!document.getElementById('target-college').value || !document.getElementById('topic').value || !document.getElementById('country').value || !document.getElementById('applicant-email').value)) return alert('Please fill in all fields including your email.');
     document.querySelectorAll('.form-step').forEach(el => el.classList.add('hidden')); document.getElementById(`step-${s}`).classList.remove('hidden');
 }, showLogin, hideLogin, handleLogout, handleProfileUpdate, openQuestion, closeThread };
 

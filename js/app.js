@@ -79,7 +79,7 @@ async function handleLogin(e) {
     try {
         const { error } = await supabase.auth.signInWithOtp({
             email: email,
-            options: { emailRedirectTo: window.location.origin + window.location.pathname }
+            options: { emailRedirectTo: 'https://emmanuelangelo-hyuwa-lang.github.io/minerva-workstudy/' }
         });
         if (error) throw error;
         alert('Magic link sent! Check your email.');

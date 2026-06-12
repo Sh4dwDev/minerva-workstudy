@@ -127,7 +127,7 @@
         <section id="success-view" class="section card hidden">
             <h2>Success!</h2>
             <p>Your question has been submitted and is currently being matched with a Minervan.</p>
-            <p>You'll receive a notification once a student starts a thread with you.</p>
+            <p>A current Minerva student will reply directly to the email address you provided. When you reply, please keep <strong>minerva.connect@proton.me</strong> in CC.</p>
             <button class="btn btn-primary" onclick="location.reload()">Submit Another</button>
         </section>
 
@@ -149,6 +149,16 @@
                 <div class="form-group">
                     <label for="profile-preferred-name">Preferred Name <span style="font-weight: 400; color: var(--mu-graphite);">(Optional — what applicants will see)</span></label>
                     <input type="text" id="profile-preferred-name" placeholder="e.g. Emmy">
+                </div>
+                <div class="form-group">
+                    <label for="profile-class-year">Your Class</label>
+                    <select id="profile-class-year" required>
+                        <option value="">Select your class</option>
+                        <option value="M30">M30</option>
+                        <option value="M29">M29</option>
+                        <option value="M28">M28</option>
+                        <option value="M27">M27</option>
+                    </select>
                 </div>
                 <div class="form-group">
                     <label for="profile-college">Your College</label>
@@ -218,10 +228,9 @@
             <div class="copyright">
                 &copy; 2026 Minerva University Student Project
             </div>
-            <!-- MANDATORY AI DISCLOSURE (per Minerva Guardrails) -->
             <div class="ai-disclosure">
                 <span class="badge">AI-Assisted</span>
-                Developed with Gemini CLI & Minerva AI Framework
+                As of June 2026, this project is not affiliated with Minerva University.
             </div>
         </div>
     </footer>

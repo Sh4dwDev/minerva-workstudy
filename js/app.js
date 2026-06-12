@@ -105,15 +105,18 @@ async function loadProfile() {
 async function handleProfileUpdate(e) {
     e.preventDefault();
     const profileData = {
+        id: state.user.id,
         first_name: document.getElementById('profile-first-name').value,
         last_name: document.getElementById('profile-last-name').value,
         preferred_name: document.getElementById('profile-preferred-name').value,
+        class_year: document.getElementById('profile-class-year').value,
         college: document.getElementById('profile-college').value,
         country: document.getElementById('profile-country').value,
         gender: document.getElementById('profile-gender').value
     };
     try {
-        const { error } = await supabase.from('profiles').update(profileData).eq('id', state.user.id);
+        // upsert: works whether or not a profile row already exists for this user
+        const { error } = await supabase.from('profiles').upsert(profileData);
         if (error) throw error;
         state.profile = { ...state.profile, ...profileData };
         renderUI();
@@ -231,6 +234,7 @@ async function loadQuestions() {
         state.questions = data.map(q => {
             let score = 0;
             if (q.target_college === state.profile.college) score += 3;
+            if (q.country === state.profile.country) score += 2;
             return { ...q, matchScore: score };
         }).sort((a, b) => b.matchScore - a.matchScore);
         renderQuestions();
@@ -272,18 +276,32 @@ function renderQuestions() {
     list.innerHTML = state.questions.map(q => `
         <div class="card">
             <h3>${q.topic}</h3>
-            <p style="color: var(--mu-clay); margin-bottom: 0.5rem;">${q.target_college}</p>
-            <p>${q.content.substring(0, 100)}...</p>
+            <p style="color: var(--mu-clay); margin-bottom: 0.5rem;">${q.target_college}${q.country ? ' · ' + q.country : ''}</p>
+            <p>${q.content}</p>
+            ${q.context ? `<p style="font-size: 0.9rem; color: var(--mu-slate);"><strong>Context:</strong> ${q.context}</p>` : ''}
             <div style="background: var(--mu-bone); border-radius: 8px; padding: 0.75rem; margin-bottom: 1rem; font-size: 0.875rem;">
-                <strong>Reply to:</strong> <a href="mailto:${q.applicant_email}?cc=minerva.connect@proton.me" style="color: var(--mu-clay);">${q.applicant_email}</a>
-                <br><span style="color: var(--mu-graphite); font-size: 0.8rem;">Remember to CC minerva.connect@proton.me when replying by email.</span>
+                <strong>Reply to:</strong> ${q.applicant_email || '<em>no email provided</em>'}
+                <br><span style="color: var(--mu-graphite); font-size: 0.8rem;">Always CC minerva.connect@proton.me in your reply.</span>
             </div>
-            <div style="display: flex; justify-content: space-between; align-items: center;">
+            <div style="display: flex; justify-content: space-between; align-items: center; gap: 0.5rem; flex-wrap: wrap;">
                 <span class="badge">Match: ${q.matchScore}</span>
-                <button class="btn btn-primary btn-sm" onclick="window.app.openQuestion('${q.id}')">Open Chat</button>
+                <div style="display: flex; gap: 0.5rem;">
+                    ${q.applicant_email ? `<a class="btn btn-primary btn-sm" style="text-decoration: none;" href="mailto:${q.applicant_email}?cc=minerva.connect@proton.me&subject=${encodeURIComponent('Minerva Connect — Re: your question about ' + q.topic)}">Reply by Email</a>` : ''}
+                    <button class="btn btn-secondary btn-sm" onclick="window.app.markAnswered('${q.id}')">Mark Answered</button>
+                </div>
             </div>
         </div>
     `).join('');
+}
+
+async function markAnswered(questionId) {
+    try {
+        const { error } = await supabase.from('questions').update({ status: 'answered' }).eq('id', questionId);
+        if (error) throw error;
+        loadQuestions();
+    } catch (err) {
+        showError('Update Error: ' + err.message);
+    }
 }
 
 function renderMessages() {
@@ -355,6 +373,7 @@ async function handleFormSubmit(e) {
     const data = {
         topic: document.getElementById('topic').value,
         target_college: document.getElementById('target-college').value,
+        country: document.getElementById('country').value,
         content: content,
         context: document.getElementById('context').value,
         applicant_email: document.getElementById('applicant-email').value,
@@ -375,6 +394,6 @@ async function handleFormSubmit(e) {
 window.app = { nextStep: (s) => {
     if (s===2 && (!document.getElementById('target-college').value || !document.getElementById('topic').value || !document.getElementById('country').value || !document.getElementById('applicant-email').value)) return alert('Please fill in all fields including your email.');
     document.querySelectorAll('.form-step').forEach(el => el.classList.add('hidden')); document.getElementById(`step-${s}`).classList.remove('hidden');
-}, showLogin, hideLogin, handleLogout, handleProfileUpdate, openQuestion, closeThread };
+}, showLogin, hideLogin, handleLogout, handleProfileUpdate, openQuestion, closeThread, loadQuestions, markAnswered };
 
 document.addEventListener('DOMContentLoaded', init);

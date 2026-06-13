@@ -357,7 +357,10 @@ function showStepError(stepId, msg) {
         el = document.createElement('div');
         el.className = 'step-error';
         el.setAttribute('role', 'alert');
-        step.insertBefore(el, step.firstChild);
+        // Place the message next to the action (just above the buttons) so it's
+        // visible where the user is looking, not off-screen at the top of the form.
+        const actions = step.querySelector('.button-group');
+        step.insertBefore(el, actions || null);
     }
     el.innerText = msg;
     el.classList.remove('hidden');
@@ -365,6 +368,8 @@ function showStepError(stepId, msg) {
     el.classList.remove('step-error--animate');
     void el.offsetWidth; // force reflow so the animation restarts
     el.classList.add('step-error--animate');
+    // Make sure it's actually in view even if the user scrolled
+    el.scrollIntoView({ behavior: 'smooth', block: 'center' });
 }
 function clearStepError(stepId) {
     const el = document.getElementById(stepId).querySelector('.step-error');

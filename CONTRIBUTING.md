@@ -26,6 +26,15 @@ Minerva Connect matches Minerva University applicants with current students for 
 
 That's it. You're connected to the same database the live app uses.
 
+### Testing the Minervan side locally
+
+The student-facing dashboard normally requires a `@uni.minerva.edu` magic-link login. So contributors can see that side without a Minerva email, there's a local-only dev login:
+
+- Click **Minervan Login**, enter **`login@login.com`**, and submit. No email or magic link is sent. You're taken straight into the Minervan dashboard.
+- This bypass **only works on `localhost`**. It does nothing on the live site, so it's safe.
+
+If `login@login.com` doesn't log you in, the shared test user may need to be (re)created in Supabase. Open an issue and I'll sort it out.
+
 > **Note on the Supabase key:** the `SUPABASE_ANON_KEY` in `js/jsconfig.js` is a *public* key. It's meant to ship in browser code, so committing it is expected and safe. Data is protected by Row Level Security policies on the database, not by hiding the key. **Please don't commit any other secrets** (`.env` files, service keys, and similar). Those are gitignored for a reason.
 
 ## Brand and guardrails standards (please follow these)

@@ -72,6 +72,30 @@ async function init() {
 async function handleLogin(e) {
     e.preventDefault();
     const email = document.getElementById('login-email').value;
+
+    // ============================================================
+    // DEV LOGIN BYPASS  --  REMOVE BEFORE / DO NOT RELY ON IN PRODUCTION
+    // Lets contributors sign in as a test Minervan WITHOUT a magic link.
+    // Safety: only runs on localhost, so it does nothing on the live site
+    // even if this block is committed or deployed by accident.
+    // One-time Supabase setup (see CONTRIBUTING / the PR notes):
+    //   1. Auth > Users > Add user: login@login.com / a dev password, "Auto Confirm User" ON
+    //   2. Make that user a Minervan so RLS lets them see the dashboard:
+    //      update public.profiles set role = 'minervan', is_verified = true
+    //      where id = (select id from auth.users where email = 'login@login.com');
+    const DEV_LOGIN = ['localhost', '127.0.0.1'].includes(window.location.hostname);
+    if (DEV_LOGIN && email === 'login@login.com') {
+        const { error } = await supabase.auth.signInWithPassword({
+            email: 'login@login.com',
+            password: 'devpassword123' // local-only test credential; never a real account
+        });
+        if (error) { showError('Dev login failed: ' + error.message); return; }
+        hideLogin();
+        return;
+    }
+    // END DEV LOGIN BYPASS
+    // ============================================================
+
     if (!email.endsWith('@uni.minerva.edu')) {
         alert('Only @uni.minerva.edu emails are allowed.');
         return;

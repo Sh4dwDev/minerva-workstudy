@@ -116,7 +116,6 @@ async function handleLogin(e) {
             options: { emailRedirectTo: window.location.origin + window.location.pathname }
         });
         if (error) throw error;
-        // alert('Magic link sent! Check your email.');
         magicLinkMessage.textContent = "Magic link sent! Check your email.";
     } catch (err) {
         console.error('[Minerva Connect] magic link error', err);

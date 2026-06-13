@@ -75,6 +75,7 @@ async function init() {
 async function handleLogin(e) {
     e.preventDefault();
     const email = document.getElementById('login-email').value.trim().toLowerCase();
+    const magicLinkMessage = document.getElementById("magic-link-message");
 
     // ============================================================
     // DEV LOGIN BYPASS  --  REMOVE BEFORE / DO NOT RELY ON IN PRODUCTION
@@ -115,8 +116,9 @@ async function handleLogin(e) {
             options: { emailRedirectTo: window.location.origin + window.location.pathname }
         });
         if (error) throw error;
-        alert('Magic link sent! Check your email.');
-        hideLogin();
+        // alert('Magic link sent! Check your email.');
+        magicLinkMessage.textContent = "Magic link sent! Check your email.";
+        // hideLogin();
     } catch (err) {
         console.error('[Minerva Connect] magic link error', err);
         const detail = [err.message, err.status && `status ${err.status}`, err.code].filter(Boolean).join(' · ');

@@ -141,6 +141,11 @@ header {
     margin-bottom: 1.5rem;
 }
 
+.magic-link-message {
+  margin-top: 12px;
+  font-weight: 600;
+}
+
 label {
     display: block;
     font-weight: 600;

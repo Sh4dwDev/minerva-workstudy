@@ -118,7 +118,6 @@ async function handleLogin(e) {
         if (error) throw error;
         // alert('Magic link sent! Check your email.');
         magicLinkMessage.textContent = "Magic link sent! Check your email.";
-        // hideLogin();
     } catch (err) {
         console.error('[Minerva Connect] magic link error', err);
         const detail = [err.message, err.status && `status ${err.status}`, err.code].filter(Boolean).join(' · ');

@@ -43,6 +43,7 @@ This is a Minerva-aligned project, so contributions need to respect two things:
 
 - Branch off `main`, make your change, and test it locally against the shared backend.
 - Keep changes consistent with the brand and guardrails above.
+- **All commits must be signed.** Pull requests with unsigned commits will not be merged. If you don't know how to sign your commits, see GitHub's guide: [Signing commits](https://docs.github.com/en/authentication/managing-commit-signature-verification/signing-commits) (and [About commit signature verification](https://docs.github.com/en/authentication/managing-commit-signature-verification/about-commit-signature-verification) for the background).
 - Open a pull request describing **what** you changed and **how** you tested it.
 
 ## Questions?

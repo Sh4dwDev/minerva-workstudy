@@ -342,10 +342,33 @@ function renderMessages() {
 function showLogin() { document.getElementById('login-section').classList.remove('hidden'); }
 function hideLogin() { document.getElementById('login-section').classList.add('hidden'); }
 function showSuccess() { document.getElementById('applicant-form-container').classList.add('hidden'); document.getElementById('success-view').classList.remove('hidden'); }
-function showError(msg) { 
+function showError(msg) {
     let el = document.getElementById('error-message');
     if (!el) { el = document.createElement('div'); el.id = 'error-message'; el.style = 'color: #d93025; background: #f8d7da; padding: 1rem; border-radius: 8px; font-weight: bold; margin-bottom: 1rem;'; document.querySelector('main').prepend(el); }
     el.innerText = msg;
+}
+
+// Inline, step-scoped validation feedback so the applicant sees what's wrong
+// on the SAME step, instead of a transient alert that disappears on "Next".
+function showStepError(stepId, msg) {
+    const step = document.getElementById(stepId);
+    let el = step.querySelector('.step-error');
+    if (!el) {
+        el = document.createElement('div');
+        el.className = 'step-error';
+        el.setAttribute('role', 'alert');
+        step.insertBefore(el, step.firstChild);
+    }
+    el.innerText = msg;
+    el.classList.remove('hidden');
+    // Re-trigger the slide-in + shake animation on every call
+    el.classList.remove('step-error--animate');
+    void el.offsetWidth; // force reflow so the animation restarts
+    el.classList.add('step-error--animate');
+}
+function clearStepError(stepId) {
+    const el = document.getElementById(stepId).querySelector('.step-error');
+    if (el) el.classList.add('hidden');
 }
 // ============================================================
 // AI Moderation & Scoring (Local Layer)
@@ -416,7 +439,23 @@ async function handleFormSubmit(e) {
 }
 
 window.app = { nextStep: (s) => {
-    if (s===2 && (!document.getElementById('target-college').value || !document.getElementById('topic').value || !document.getElementById('country').value || !document.getElementById('applicant-email').value)) return alert('Please fill in all fields including your email.');
+    if (s === 2) {
+        const college = document.getElementById('target-college').value;
+        const topic = document.getElementById('topic').value;
+        const country = document.getElementById('country').value;
+        const emailField = document.getElementById('applicant-email');
+        const email = emailField.value.trim();
+
+        if (!college || !topic || !country || !email) {
+            return showStepError('step-1', 'Please fill in all fields, including your email, before continuing.');
+        }
+        // Validate email format here so problems are caught while the field is still visible
+        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+            emailField.focus();
+            return showStepError('step-1', "That email address doesn't look right. Please enter a valid email (e.g. you@example.com).");
+        }
+        clearStepError('step-1');
+    }
     document.querySelectorAll('.form-step').forEach(el => el.classList.add('hidden')); document.getElementById(`step-${s}`).classList.remove('hidden');
 }, showLogin, hideLogin, handleLogout, handleProfileUpdate, openQuestion, closeThread, loadQuestions, markAnswered };
 

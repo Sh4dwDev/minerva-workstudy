@@ -15,6 +15,9 @@ const state = {
   user: null,
   profile: null,
   questions: [],
+  answered: [],
+  allQuestions: [],
+  currentTab: 'open',
   currentThread: null,
   messages: [],
   messageSubscription: null
@@ -96,20 +99,26 @@ async function handleLogin(e) {
     // END DEV LOGIN BYPASS
     // ============================================================
 
-    if (!email.endsWith('@uni.minerva.edu')) {
-        alert('Only @uni.minerva.edu emails are allowed.');
-        return;
+    // Allowed: any @uni.minerva.edu student, plus two explicit exceptions.
+    const normalized = email.trim().toLowerCase();
+    const ALLOWED_EXCEPTIONS = ['ben.wilkoff@minerva.edu', 'minerva.connect@proton.me'];
+    const allowed = normalized.endsWith('@uni.minerva.edu') || ALLOWED_EXCEPTIONS.includes(normalized);
+    if (!allowed) {
+        return showLoginError('Please use your @uni.minerva.edu email. This portal is for current Minervans only.');
     }
+    clearLoginError();
     try {
         const { error } = await supabase.auth.signInWithOtp({
             email: email,
-            options: { emailRedirectTo: 'https://emmanuelangelo-hyuwa-lang.github.io/minerva-workstudy/' }
+            // Return to wherever the user actually is (localhost in dev, the live
+            // site in prod) so the post-login profile step is reachable in both.
+            options: { emailRedirectTo: window.location.origin + window.location.pathname }
         });
         if (error) throw error;
         alert('Magic link sent! Check your email.');
         hideLogin();
     } catch (err) {
-        showError('Login Error: ' + err.message);
+        showLoginError('Login error: ' + err.message);
     }
 }
 
@@ -119,11 +128,12 @@ async function handleLogout() {
 
 async function loadProfile() {
     const { data } = await supabase.from('profiles').select('*').eq('id', state.user.id).single();
-    if (data) {
-        state.profile = data;
-        if (state.profile.college && state.profile.country) loadQuestions();
-    }
+    if (data) state.profile = data;
     renderUI();
+    // Staff who are ready to work get the open-questions list loaded
+    if (state.profile?.role === 'admin' || (state.profile?.college && state.profile?.country)) {
+        loadQuestions();
+    }
 }
 
 async function handleProfileUpdate(e) {
@@ -276,19 +286,27 @@ function renderUI() {
     [applicantForm, howItWorks, profileSetup, dashboard, threadView].forEach(el => el.classList.add('hidden'));
 
     if (state.user) {
-        authControls.innerHTML = `<span>Minervan Verified</span> <button class="btn btn-secondary" onclick="window.app.handleLogout()">Logout</button>`;
-        if (!state.profile?.college) {
+        const isAdmin = state.profile?.role === 'admin';
+        authControls.innerHTML = `<span>${isAdmin ? 'Admin' : 'Minervan Verified'}</span> <button class="btn btn-secondary" onclick="window.app.handleLogout()">Logout</button>`;
+        // Admins skip the matching profile; everyone else completes it once.
+        const profileComplete = isAdmin || (state.profile?.college && state.profile?.first_name);
+        if (!profileComplete) {
             profileSetup.classList.remove('hidden');
         } else if (state.currentThread) {
             threadView.classList.remove('hidden');
         } else {
             dashboard.classList.remove('hidden');
+            document.querySelector('.tab-admin')?.classList.toggle('hidden', !isAdmin);
         }
     } else {
         authControls.innerHTML = `<button class="btn btn-secondary" onclick="window.app.showLogin()">Minervan Login</button>`;
         applicantForm.classList.remove('hidden');
         howItWorks.classList.remove('hidden');
     }
+}
+
+function escapeHtml(s) {
+    return String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 }
 
 function renderQuestions() {
@@ -299,33 +317,167 @@ function renderQuestions() {
     }
     list.innerHTML = state.questions.map(q => `
         <div class="card">
-            <h3>${q.topic}</h3>
-            <p style="color: var(--mu-clay); margin-bottom: 0.5rem;">${q.target_college}${q.country ? ' · ' + q.country : ''}</p>
-            <p>${q.content}</p>
-            ${q.context ? `<p style="font-size: 0.9rem; color: var(--mu-slate);"><strong>Context:</strong> ${q.context}</p>` : ''}
+            <h3>${escapeHtml(q.topic)}</h3>
+            <p style="color: var(--mu-clay); margin-bottom: 0.5rem;">${escapeHtml(q.target_college || '')}${q.country ? ' · ' + escapeHtml(q.country) : ''}</p>
+            <p>${escapeHtml(q.content)}</p>
+            ${q.context ? `<p style="font-size: 0.9rem; color: var(--mu-slate);"><strong>Context:</strong> ${escapeHtml(q.context)}</p>` : ''}
             <div style="background: var(--mu-bone); border-radius: 8px; padding: 0.75rem; margin-bottom: 1rem; font-size: 0.875rem;">
-                <strong>Reply to:</strong> ${q.applicant_email || '<em>no email provided</em>'}
-                <br><span style="color: var(--mu-graphite); font-size: 0.8rem;">Always CC minerva.connect@proton.me in your reply.</span>
+                <strong>From:</strong> ${escapeHtml(q.applicant_name || 'Applicant')} &lt;${escapeHtml(q.applicant_email || 'no email provided')}&gt;
+                <br><span style="color: var(--mu-graphite); font-size: 0.8rem;">Clicking reply marks this answered and keeps minerva.connect@proton.me in CC.</span>
             </div>
             <div style="display: flex; justify-content: space-between; align-items: center; gap: 0.5rem; flex-wrap: wrap;">
                 <span class="badge">Match: ${q.matchScore}</span>
-                <div style="display: flex; gap: 0.5rem;">
-                    ${q.applicant_email ? `<a class="btn btn-primary btn-sm" style="text-decoration: none;" href="mailto:${q.applicant_email}?cc=minerva.connect@proton.me&subject=${encodeURIComponent('Minerva Connect — Re: your question about ' + q.topic)}">Reply by Email</a>` : ''}
-                    <button class="btn btn-secondary btn-sm" onclick="window.app.markAnswered('${q.id}')">Mark Answered</button>
-                </div>
+                ${q.applicant_email
+                    ? `<button class="btn btn-primary btn-sm" onclick="window.app.replyByEmail('${q.id}')">Reply by Email</button>`
+                    : '<span style="color: var(--mu-graphite); font-size: 0.85rem;">No email provided</span>'}
             </div>
         </div>
     `).join('');
 }
 
-async function markAnswered(questionId) {
+// ---- Reply-by-email flow --------------------------------------------------
+function replyByEmail(questionId) {
+    const q = state.questions.find(x => x.id === questionId);
+    if (!q) return;
+    document.getElementById('reply-modal').classList.remove('hidden');
+    document.getElementById('reply-continue-btn').onclick = () => confirmReply(questionId);
+}
+
+function closeReplyModal() {
+    document.getElementById('reply-modal').classList.add('hidden');
+}
+
+async function confirmReply(questionId) {
+    const q = state.questions.find(x => x.id === questionId);
+    if (!q) return closeReplyModal();
+
+    const body = [
+        '--- Please use REPLY ALL so minerva.connect@proton.me stays in CC ---',
+        '',
+        `Hi ${q.applicant_name || 'there'},`,
+        '',
+        `Thanks for your question about ${q.topic || 'Minerva'}.`,
+        '[Write your answer here]',
+        '',
+        'Best,',
+        displayName(state.profile),
+        'Minerva Connect'
+    ].join('\n');
+    const subject = `Minerva Connect — Re: your question about ${q.topic || ''}`;
+    const mailto = `mailto:${encodeURIComponent(q.applicant_email)}`
+        + `?cc=${encodeURIComponent('minerva.connect@proton.me')}`
+        + `&subject=${encodeURIComponent(subject)}`
+        + `&body=${encodeURIComponent(body)}`;
+
+    // Clicking reply marks the question answered (with attribution).
     try {
-        const { error } = await supabase.from('questions').update({ status: 'answered' }).eq('id', questionId);
+        const { error } = await supabase.from('questions').update({
+            status: 'answered',
+            answered_by: state.user.id,
+            answered_by_name: displayName(state.profile),
+            answered_at: new Date().toISOString()
+        }).eq('id', questionId);
         if (error) throw error;
-        loadQuestions();
     } catch (err) {
-        showError('Update Error: ' + err.message);
+        showError('Could not mark answered: ' + err.message);
     }
+
+    closeReplyModal();
+    window.location.href = mailto;   // opens the email client
+    loadQuestions();                 // it leaves "Open"; appears under "Answered"
+}
+
+// ---- Answered tab ---------------------------------------------------------
+async function loadAnswered() {
+    const { data } = await supabase.from('questions')
+        .select('*').eq('status', 'answered').order('answered_at', { ascending: false });
+    state.answered = data || [];
+    renderAnswered();
+}
+
+function renderAnswered() {
+    const list = document.getElementById('answered-list');
+    if (!state.answered.length) {
+        list.innerHTML = '<p style="color: var(--mu-graphite);">No answered questions yet.</p>';
+        return;
+    }
+    list.innerHTML = state.answered.map(q => `
+        <div class="card">
+            <h3>${escapeHtml(q.topic)}</h3>
+            <p style="color: var(--mu-clay); margin-bottom: 0.5rem;">${escapeHtml(q.target_college || '')}${q.country ? ' · ' + escapeHtml(q.country) : ''}</p>
+            <p>${escapeHtml(q.content)}</p>
+            <div class="answered-by">Answered by <strong>${escapeHtml(q.answered_by_name || 'a Minervan')}</strong></div>
+        </div>
+    `).join('');
+}
+
+// ---- Admin panel ----------------------------------------------------------
+async function loadAllQuestions() {
+    const { data } = await supabase.from('questions')
+        .select('*').order('created_at', { ascending: false });
+    state.allQuestions = data || [];
+    renderAdmin();
+}
+
+function renderAdmin() {
+    const list = document.getElementById('admin-list');
+    if (!state.allQuestions.length) {
+        list.innerHTML = '<p style="color: var(--mu-graphite);">No questions in the system.</p>';
+        return;
+    }
+    list.innerHTML = state.allQuestions.map(q => {
+        const cls = q.status === 'open' ? 'status-open' : (q.status === 'answered' ? 'status-answered' : 'status-other');
+        return `
+        <div class="admin-row">
+            <div style="display:flex; justify-content:space-between; gap:0.5rem; align-items:center; flex-wrap:wrap;">
+                <strong>${escapeHtml(q.topic || '')}</strong>
+                <span class="status-pill ${cls}">${escapeHtml(q.status || '')}</span>
+            </div>
+            <p style="margin:0.5rem 0;">${escapeHtml(q.content || '')}</p>
+            <div class="meta">
+                Applicant: <strong>${escapeHtml(q.applicant_name || '—')}</strong> &lt;${escapeHtml(q.applicant_email || '—')}&gt;<br>
+                College: ${escapeHtml(q.target_college || '—')} · Country: ${escapeHtml(q.country || '—')}
+                ${q.answered_by_name ? `<br>Answered by: <strong>${escapeHtml(q.answered_by_name)}</strong>` : ''}
+            </div>
+            <div class="admin-actions">
+                ${q.status === 'answered' ? `<button class="btn btn-secondary btn-sm" onclick="window.app.unanswerQuestion('${q.id}')">Mark Unanswered</button>` : ''}
+                <button class="btn btn-danger btn-sm" onclick="window.app.deleteQuestion('${q.id}')">Delete</button>
+            </div>
+        </div>`;
+    }).join('');
+}
+
+async function unanswerQuestion(id) {
+    try {
+        const { error } = await supabase.from('questions')
+            .update({ status: 'open', answered_by: null, answered_by_name: null, answered_at: null }).eq('id', id);
+        if (error) throw error;
+        loadAllQuestions();
+    } catch (err) { showError('Update Error: ' + err.message); }
+}
+
+async function deleteQuestion(id) {
+    if (!confirm('Delete this question permanently? This cannot be undone.')) return;
+    try {
+        const { error } = await supabase.from('questions').delete().eq('id', id);
+        if (error) throw error;
+        loadAllQuestions();
+    } catch (err) { showError('Delete Error: ' + err.message); }
+}
+
+// ---- Dashboard tabs -------------------------------------------------------
+function showTab(name) {
+    state.currentTab = name;
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('active', b.dataset.tab === name));
+    document.querySelectorAll('.tab-pane').forEach(p => p.classList.add('hidden'));
+    document.getElementById('tab-' + name)?.classList.remove('hidden');
+    if (name === 'open') loadQuestions();
+    else if (name === 'answered') loadAnswered();
+    else if (name === 'admin') loadAllQuestions();
+}
+
+function refreshDashboard() {
+    showTab(state.currentTab || 'open');
 }
 
 function renderMessages() {
@@ -375,6 +527,26 @@ function clearStepError(stepId) {
     const el = document.getElementById(stepId).querySelector('.step-error');
     if (el) el.classList.add('hidden');
 }
+function showLoginError(msg) {
+    const el = document.getElementById('login-error');
+    if (!el) return alert(msg);
+    el.innerText = msg;
+    el.classList.remove('hidden');
+    el.classList.remove('step-error--animate');
+    void el.offsetWidth;
+    el.classList.add('step-error--animate');
+}
+function clearLoginError() {
+    document.getElementById('login-error')?.classList.add('hidden');
+}
+
+// "First Last (Preferred)" — preferred name in brackets, first then last.
+function displayName(p) {
+    if (!p) return 'A Minervan';
+    const full = `${p.first_name || ''} ${p.last_name || ''}`.trim();
+    const pref = p.preferred_name && p.preferred_name.trim();
+    return pref ? `${full} (${pref})` : (full || 'A Minervan');
+}
 // ============================================================
 // AI Moderation & Scoring (Local Layer)
 // ============================================================
@@ -423,6 +595,7 @@ async function handleFormSubmit(e) {
     const moderation = moderateQuestion(content);
 
     const data = {
+        applicant_name: document.getElementById('applicant-name').value.trim(),
         topic: document.getElementById('topic').value,
         target_college: document.getElementById('target-college').value,
         country: document.getElementById('country').value,
@@ -445,14 +618,15 @@ async function handleFormSubmit(e) {
 
 window.app = { nextStep: (s) => {
     if (s === 2) {
+        const name = document.getElementById('applicant-name').value.trim();
         const college = document.getElementById('target-college').value;
         const topic = document.getElementById('topic').value;
         const country = document.getElementById('country').value;
         const emailField = document.getElementById('applicant-email');
         const email = emailField.value.trim();
 
-        if (!college || !topic || !country || !email) {
-            return showStepError('step-1', 'Please fill in all fields, including your email, before continuing.');
+        if (!name || !college || !topic || !country || !email) {
+            return showStepError('step-1', 'Please fill in all fields, including your name and email, before continuing.');
         }
         // Validate email format here so problems are caught while the field is still visible
         if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
@@ -462,6 +636,10 @@ window.app = { nextStep: (s) => {
         clearStepError('step-1');
     }
     document.querySelectorAll('.form-step').forEach(el => el.classList.add('hidden')); document.getElementById(`step-${s}`).classList.remove('hidden');
-}, showLogin, hideLogin, handleLogout, handleProfileUpdate, openQuestion, closeThread, loadQuestions, markAnswered };
+},
+    showLogin, hideLogin, handleLogout, handleProfileUpdate, openQuestion, closeThread,
+    loadQuestions, loadAnswered, loadAllQuestions, showTab, refreshDashboard,
+    replyByEmail, confirmReply, closeReplyModal, unanswerQuestion, deleteQuestion
+};
 
 document.addEventListener('DOMContentLoaded', init);

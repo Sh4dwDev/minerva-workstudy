@@ -25,6 +25,7 @@
             <h2>Minervan Portal</h2>
             <p>Enter your <strong>@uni.minerva.edu</strong> email to receive a magic login link.</p>
             <form id="login-form">
+                <div id="login-error" class="step-error hidden" role="alert"></div>
                 <div class="form-group">
                     <label for="login-email">Minerva Email</label>
                     <input type="email" id="login-email" placeholder="student@uni.minerva.edu" required>
@@ -61,6 +62,11 @@
                 <!-- STEP 1: Preferences -->
                 <div id="step-1" class="form-step">
                     <h3>Step 1: Your Preferences</h3>
+                    <div class="form-group">
+                        <label for="applicant-name">Your Name</label>
+                        <input type="text" id="applicant-name" placeholder="e.g. Jane Doe" required>
+                        <small style="color: var(--mu-graphite); margin-top: 0.4rem; display: block;">So the Minervan who replies can address you by name.</small>
+                    </div>
                     <div class="form-group">
                         <label for="target-college">Intended College</label>
                         <select id="target-college" required>
@@ -147,8 +153,9 @@
                     </div>
                 </div>
                 <div class="form-group">
-                    <label for="profile-preferred-name">Preferred Name <span style="font-weight: 400; color: var(--mu-graphite);">(Optional — what applicants will see)</span></label>
-                    <input type="text" id="profile-preferred-name" placeholder="e.g. Emmy">
+                    <label for="profile-preferred-name">Preferred Name <span style="font-weight: 400; color: var(--mu-graphite);">(what applicants will see)</span></label>
+                    <input type="text" id="profile-preferred-name" placeholder="e.g. Emmy" required>
+                    <small style="color: var(--mu-graphite); margin-top: 0.4rem; display: block;">Repeat your first name if it's not different.</small>
                 </div>
                 <div class="form-group">
                     <label for="profile-class-year">Your Class</label>
@@ -158,6 +165,7 @@
                         <option value="M29">M29</option>
                         <option value="M28">M28</option>
                         <option value="M27">M27</option>
+                        <option value="M26-">M26 &amp; earlier (Legacy)</option>
                     </select>
                 </div>
                 <div class="form-group">
@@ -193,12 +201,35 @@
         <!-- MINERVAN DASHBOARD (HIDDEN BY DEFAULT) -->
         <section id="dashboard-section" class="section hidden">
             <div class="header-flex">
-                <h2>Your Matched Questions</h2>
-                <button class="btn btn-secondary" onclick="window.app.loadQuestions()">Refresh</button>
+                <h2>Minervan Dashboard</h2>
+                <button class="btn btn-secondary" onclick="window.app.refreshDashboard()">Refresh</button>
             </div>
-            <div id="questions-list" class="grid" style="margin-top: 2rem;">
-                <!-- Questions will be injected here -->
-                <p>Loading questions...</p>
+
+            <div class="tab-bar">
+                <button class="tab-btn active" data-tab="open" onclick="window.app.showTab('open')">Open Questions</button>
+                <button class="tab-btn" data-tab="answered" onclick="window.app.showTab('answered')">Answered Questions</button>
+                <button class="tab-btn tab-admin hidden" data-tab="admin" onclick="window.app.showTab('admin')">Admin</button>
+            </div>
+
+            <div id="tab-open" class="tab-pane">
+                <div id="questions-list" class="grid" style="margin-top: 2rem;">
+                    <!-- Open questions injected here -->
+                    <p>Loading questions...</p>
+                </div>
+            </div>
+
+            <div id="tab-answered" class="tab-pane hidden">
+                <div id="answered-list" class="grid" style="margin-top: 2rem;">
+                    <!-- Answered questions injected here -->
+                    <p>Loading answered questions...</p>
+                </div>
+            </div>
+
+            <div id="tab-admin" class="tab-pane hidden">
+                <div id="admin-list" style="margin-top: 2rem;">
+                    <!-- All questions (admin) injected here -->
+                    <p>Loading all questions...</p>
+                </div>
             </div>
         </section>
 
@@ -221,6 +252,23 @@
                 </form>
             </div>
         </section>
+
+        <!-- REPLY-BY-EMAIL MODAL (HIDDEN BY DEFAULT) -->
+        <div id="reply-modal" class="modal-overlay hidden">
+            <div class="modal-card">
+                <div class="modal-header">
+                    <span class="modal-brand">Minerva Connect</span>
+                </div>
+                <div class="modal-body">
+                    <h3>You're about to reply by email</h3>
+                    <p>We'll open your email app with a draft to the applicant. <strong>Please use &ldquo;Reply All&rdquo;</strong> so that <strong>minerva.connect@proton.me</strong> stays in CC. This keeps every conversation verified and on record.</p>
+                </div>
+                <div class="modal-actions">
+                    <button type="button" class="btn btn-secondary" onclick="window.app.closeReplyModal()">Cancel</button>
+                    <button type="button" class="btn btn-primary" id="reply-continue-btn">Continue to Email</button>
+                </div>
+            </div>
+        </div>
     </main>
 
     <footer>

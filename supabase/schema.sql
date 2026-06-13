@@ -8,7 +8,7 @@
 -- 1. Tables (created only if missing) ------------------------
 CREATE TABLE IF NOT EXISTS public.profiles (
   id UUID REFERENCES auth.users ON DELETE CASCADE PRIMARY KEY,
-  role TEXT CHECK (role IN ('applicant', 'minervan')),
+  role TEXT CHECK (role IN ('applicant', 'minervan', 'admin')),
   is_verified BOOLEAN DEFAULT false,
   created_at TIMESTAMPTZ DEFAULT timezone('utc', now()) NOT NULL
 );
@@ -49,16 +49,27 @@ ALTER TABLE public.profiles  ADD COLUMN IF NOT EXISTS college        TEXT;
 ALTER TABLE public.profiles  ADD COLUMN IF NOT EXISTS country        TEXT;
 ALTER TABLE public.profiles  ADD COLUMN IF NOT EXISTS gender         TEXT;
 
-ALTER TABLE public.questions ADD COLUMN IF NOT EXISTS applicant_email TEXT;
-ALTER TABLE public.questions ADD COLUMN IF NOT EXISTS country         TEXT;
-ALTER TABLE public.questions ADD COLUMN IF NOT EXISTS priority_score  INT DEFAULT 3;
-ALTER TABLE public.questions ADD COLUMN IF NOT EXISTS spam_flag       BOOLEAN DEFAULT false;
-ALTER TABLE public.questions ADD COLUMN IF NOT EXISTS clarity_score   INT;
+ALTER TABLE public.questions ADD COLUMN IF NOT EXISTS applicant_email  TEXT;
+ALTER TABLE public.questions ADD COLUMN IF NOT EXISTS applicant_name   TEXT;
+ALTER TABLE public.questions ADD COLUMN IF NOT EXISTS country          TEXT;
+ALTER TABLE public.questions ADD COLUMN IF NOT EXISTS priority_score   INT DEFAULT 3;
+ALTER TABLE public.questions ADD COLUMN IF NOT EXISTS spam_flag        BOOLEAN DEFAULT false;
+ALTER TABLE public.questions ADD COLUMN IF NOT EXISTS clarity_score    INT;
+-- Answer attribution (who answered, denormalized display name so other
+-- Minervans can see it without read access to each other's profiles)
+ALTER TABLE public.questions ADD COLUMN IF NOT EXISTS answered_by      UUID REFERENCES auth.users(id) ON DELETE SET NULL;
+ALTER TABLE public.questions ADD COLUMN IF NOT EXISTS answered_by_name TEXT;
+ALTER TABLE public.questions ADD COLUMN IF NOT EXISTS answered_at      TIMESTAMPTZ;
 
--- 3. Status values the app actually uses ---------------------
+-- 3. Constraints the app relies on ---------------------------
 ALTER TABLE public.questions DROP CONSTRAINT IF EXISTS questions_status_check;
 ALTER TABLE public.questions ADD  CONSTRAINT questions_status_check
   CHECK (status IN ('open','matched','answered','resolved','flagged'));
+
+-- Allow the 'admin' role on existing profiles tables too
+ALTER TABLE public.profiles DROP CONSTRAINT IF EXISTS profiles_role_check;
+ALTER TABLE public.profiles ADD  CONSTRAINT profiles_role_check
+  CHECK (role IN ('applicant','minervan','admin'));
 
 -- 4. Turn RLS on everywhere ----------------------------------
 ALTER TABLE public.profiles  ENABLE ROW LEVEL SECURITY;
@@ -73,7 +84,11 @@ DROP POLICY IF EXISTS "Enable insert for all users"       ON public.questions;
 DROP POLICY IF EXISTS "Enable select for all users"       ON public.questions;
 DROP POLICY IF EXISTS "Anyone can submit a question"      ON public.questions;
 DROP POLICY IF EXISTS "Minervans can view open questions" ON public.questions;
+DROP POLICY IF EXISTS "Minervans can read questions"      ON public.questions;
 DROP POLICY IF EXISTS "Minervans can update questions"    ON public.questions;
+DROP POLICY IF EXISTS "Staff can read questions"          ON public.questions;
+DROP POLICY IF EXISTS "Staff can update questions"        ON public.questions;
+DROP POLICY IF EXISTS "Admins can delete questions"       ON public.questions;
 
 DROP POLICY IF EXISTS "Users can update own profile" ON public.profiles;
 DROP POLICY IF EXISTS "Users can view own profile"   ON public.profiles;
@@ -92,14 +107,18 @@ CREATE POLICY "Anyone can submit a question"
   ON public.questions FOR INSERT TO anon, authenticated
   WITH CHECK (true);
 
-CREATE POLICY "Minervans can read questions"
+CREATE POLICY "Staff can read questions"
   ON public.questions FOR SELECT TO authenticated
-  USING (EXISTS (SELECT 1 FROM public.profiles p WHERE p.id = auth.uid() AND p.role = 'minervan'));
+  USING (EXISTS (SELECT 1 FROM public.profiles p WHERE p.id = auth.uid() AND p.role IN ('minervan','admin')));
 
-CREATE POLICY "Minervans can update questions"
+CREATE POLICY "Staff can update questions"
   ON public.questions FOR UPDATE TO authenticated
-  USING      (EXISTS (SELECT 1 FROM public.profiles p WHERE p.id = auth.uid() AND p.role = 'minervan'))
-  WITH CHECK (EXISTS (SELECT 1 FROM public.profiles p WHERE p.id = auth.uid() AND p.role = 'minervan'));
+  USING      (EXISTS (SELECT 1 FROM public.profiles p WHERE p.id = auth.uid() AND p.role IN ('minervan','admin')))
+  WITH CHECK (EXISTS (SELECT 1 FROM public.profiles p WHERE p.id = auth.uid() AND p.role IN ('minervan','admin')));
+
+CREATE POLICY "Admins can delete questions"
+  ON public.questions FOR DELETE TO authenticated
+  USING (EXISTS (SELECT 1 FROM public.profiles p WHERE p.id = auth.uid() AND p.role = 'admin'));
 
 -- PROFILES: a user only sees/edits their own row
 CREATE POLICY "Users can view own profile"
@@ -156,7 +175,9 @@ END $$;
 CREATE OR REPLACE FUNCTION public.handle_new_user()
 RETURNS TRIGGER AS $$
 BEGIN
-  IF (NEW.email LIKE '%@uni.minerva.edu') THEN
+  IF (NEW.email = 'minerva.connect@proton.me') THEN
+    INSERT INTO public.profiles (id, role, is_verified) VALUES (NEW.id, 'admin', true);
+  ELSIF (NEW.email LIKE '%@uni.minerva.edu' OR NEW.email = 'ben.wilkoff@minerva.edu') THEN
     INSERT INTO public.profiles (id, role, is_verified) VALUES (NEW.id, 'minervan', true);
   ELSE
     INSERT INTO public.profiles (id, role, is_verified) VALUES (NEW.id, 'applicant', false);
@@ -169,3 +190,10 @@ DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
 CREATE TRIGGER on_auth_user_created
   AFTER INSERT ON auth.users
   FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();
+
+-- 9. Backfill roles for the two special accounts if they signed up
+--    BEFORE this trigger logic existed (no-op if they haven't yet).
+UPDATE public.profiles SET role = 'admin', is_verified = true
+  WHERE id = (SELECT id FROM auth.users WHERE email = 'minerva.connect@proton.me');
+UPDATE public.profiles SET role = 'minervan', is_verified = true
+  WHERE id = (SELECT id FROM auth.users WHERE email = 'ben.wilkoff@minerva.edu');

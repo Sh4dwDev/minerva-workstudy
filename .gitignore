@@ -1,3 +1,11 @@
 # Dependencies
 node_modules/
+
+# macOS
 .DS_Store
+
+# Secrets (none committed by default — see README)
+.env
+.env.*
+*.key
+*.pem

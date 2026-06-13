@@ -74,7 +74,7 @@ async function init() {
 
 async function handleLogin(e) {
     e.preventDefault();
-    const email = document.getElementById('login-email').value;
+    const email = document.getElementById('login-email').value.trim().toLowerCase();
 
     // ============================================================
     // DEV LOGIN BYPASS  --  REMOVE BEFORE / DO NOT RELY ON IN PRODUCTION
@@ -100,7 +100,7 @@ async function handleLogin(e) {
     // ============================================================
 
     // Allowed: any @uni.minerva.edu student, plus two explicit exceptions.
-    const normalized = email.trim().toLowerCase();
+    const normalized = email;
     const ALLOWED_EXCEPTIONS = ['ben.wilkoff@minerva.edu', 'minerva.connect@proton.me'];
     const allowed = normalized.endsWith('@uni.minerva.edu') || ALLOWED_EXCEPTIONS.includes(normalized);
     if (!allowed) {
@@ -109,7 +109,7 @@ async function handleLogin(e) {
     clearLoginError();
     try {
         const { error } = await supabase.auth.signInWithOtp({
-            email: email,
+            email: normalized,
             // Return to wherever the user actually is (localhost in dev, the live
             // site in prod) so the post-login profile step is reachable in both.
             options: { emailRedirectTo: window.location.origin + window.location.pathname }
@@ -118,7 +118,9 @@ async function handleLogin(e) {
         alert('Magic link sent! Check your email.');
         hideLogin();
     } catch (err) {
-        showLoginError('Login error: ' + err.message);
+        console.error('[Minerva Connect] magic link error', err);
+        const detail = [err.message, err.status && `status ${err.status}`, err.code].filter(Boolean).join(' · ');
+        showLoginError('Login error: ' + detail);
     }
 }
 
